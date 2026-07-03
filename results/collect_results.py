@@ -71,10 +71,25 @@ def main() -> None:
             for row in csv.DictReader(f):
                 board[(row["model"], row["board"])] = row
 
+    # kmacs is analytic and machine-independent; on boxes without TF/keras
+    # (e.g. the flashing machine) reuse the values already in main_table.csv.
+    prev_kmacs: dict[str, int] = {}
+    if OUT_CSV.exists():
+        with OUT_CSV.open() as f:
+            for row in csv.DictReader(f):
+                if row.get("kmacs", "").isdigit():
+                    prev_kmacs[row["model"]] = int(row["kmacs"])
+
     current = {"esp32": args.esp32_ma, "pico": args.pico_ma}
     rows = []
     for name, e in export.items():
-        macs = model_macs(name)
+        try:
+            macs = model_macs(name)
+        except ImportError:
+            if name not in prev_kmacs:
+                raise SystemExit(
+                    f"no TF/keras to compute MACs and no cached kmacs for {name}")
+            macs = prev_kmacs[name] * 1e3
         row = {
             "model": name,
             "params": e["params"],

@@ -36,7 +36,7 @@ def parse_log(path: Path) -> dict:
     samples: list[float] = []
     sr_dump: str | None = None
     for line in path.read_text(errors="replace").splitlines():
-        m = re.search(r"CAS:([a-z_]+)=(.*)", line.strip())
+        m = re.search(r"CAS:([a-z0-9_]+)=(.*)", line.strip())
         if not m:
             continue
         key, val = m.group(1), m.group(2).strip()

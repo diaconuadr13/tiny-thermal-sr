@@ -1,0 +1,11 @@
+model,board,status,model_kb,arena_alloc_kb,arena_used_kb,heap_before_kb,heap_after_kb,invoke_ms_first,invoke_ms_mean,invoke_ms_std,samples,ref_mismatches,ref_max_abs_diff
+edsr_tiny,esp32,NOFIT_TENSORS,185.2,96.0,,260.8,,,,,0,,
+edsr_tiny,pico,OK,185.2,144.0,129.3,101.1,101.1,10038.97,10038.73,0.182,10,1517,3
+espcn,esp32,OK,26.2,96.0,73.6,260.8,160.8,969.72,969.14,0.014,10,120,1
+espcn_light,esp32,OK,10.1,64.0,37.2,260.8,192.8,338.2,337.85,0.011,10,56,1
+espcn_light,pico,OK,10.1,64.0,38.5,181.1,181.1,403.09,402.57,0.057,10,56,1
+espcn_micro,esp32,OK,5.2,32.0,19.1,260.8,226.8,102.3,102.12,0.006,10,28,1
+espcn_micro,pico,OK,5.2,32.0,19.7,213.1,213.1,128.18,127.91,0.013,10,28,1
+espcn,pico,OK,26.2,128.0,76.0,117.1,117.1,1501.11,1500.81,0.097,10,120,1
+fsrcnn_ds,esp32,OK,20.8,96.0,54.0,260.8,160.8,628.37,628.01,0.007,10,952,4
+fsrcnn_ds,pico,OK,20.8,96.0,54.2,149.1,149.1,717.92,717.41,0.061,10,952,4

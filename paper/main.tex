@@ -1,36 +1,53 @@
-% CAS 2026 (International Semiconductor Conference, Sinaia) - IEEE format
-\documentclass[conference]{IEEEtran}
+% CAS 2026 (International Semiconductor Conference, Sinaia) - IEEE conference format
+% Matches the CAS/IEEE A4 conference template (conference-template-a4_CAS2026.docx).
+\documentclass[conference,a4paper]{IEEEtran}
 
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{amsmath}
+\usepackage{newtxtext,newtxmath} % Times New Roman, to match the CAS/IEEE A4 Word template
 \usepackage{cite}
+\usepackage{makecell}
+\usepackage{url}
+\usepackage{balance}
 
 \graphicspath{{../figures/}}
 
 \begin{document}
 
 \title{Fully Integer-Quantized Thermal Image Super-Resolution\\
-on Sub-Dollar Microcontrollers}
+on Low-Cost Microcontrollers}
 
 \author{
-\IEEEauthorblockN{Adrian-Gabriel Diaconu}
-\IEEEauthorblockA{\textit{TODO: affiliation}\\
-TODO: email}
-% TODO: co-authors / advisor
+\IEEEauthorblockN{Adrian-Gabriel Diaconu \quad Andrei-Alexandru Ulm\u{a}mei}
+\IEEEauthorblockA{\textit{Faculty of Electronics, Telecommunications and Information Technology}\\
+\textit{National University of Science and Technology POLITEHNICA Bucharest}\\
+Bucharest, Romania\\
+adrian.diaconu1305@stud.etti.upb.ro, alexandru.ulmamei@upb.ro}
 }
 
 \maketitle
 
 \begin{abstract}
-% TODO (write last). Skeleton:
-% - Low-cost thermal sensors (e.g. MLX90640) output 32x24 px frames.
-% - We deploy x2 CNN super-resolution fully on-device on ESP32 and RP2040.
-% - Contribution 1: INT8-friendly architecture modifications enabling
-%   FULL-integer quantization (int8 activations AND weights, int8 I/O) for
-%   five compact SR networks -- no hybrid ops, mandatory for esp-nn/TFLM.
-% - Contribution 2: cross-board benchmark: latency, memory, flash, quality,
-%   estimated energy; quantization PSNR drop < X dB.
+Low-cost thermal sensors such as the MLX90640 deliver only $32{\times}24$\,px
+frames, which limits their use in presence detection and human--machine
+interfaces. We show that convolutional super-resolution (SR) can run
+\emph{entirely on the microcontroller that reads the sensor}. Five compact SR
+networks (1.6\,k--159\,k parameters) are redesigned around a restricted
+operator vocabulary (\texttt{CONV\_2D}, \texttt{ADD},
+\texttt{DEPTH\_TO\_SPACE}) so that post-training quantization yields
+\emph{fully} integer INT8 models (int8 weights, activations and I/O). Full
+integer form is a hard requirement of embedded TFLite Micro runtimes, which
+reject hybrid graphs at runtime. On a FLIR-derived thermal validation set,
+all quantized models surpass bicubic interpolation (30.56\,dB) by
+0.2--2.0\,dB, at a quantization penalty of only 0.17--0.64\,dB. We benchmark
+all models on two low-cost MCUs: an ESP32 (240\,MHz, no PSRAM) and a
+Raspberry Pi Pico (RP2040, 133\,MHz), reporting measured latency
+(102\,ms--10.0\,s per frame), tensor-arena memory (19--129\,KB), flash
+footprint (5--185\,KB) and estimated energy. The smallest model sustains the
+sensor's native 8\,Hz refresh rate on both boards. Its on-device output
+matches the PC reference within $\pm$4 int8 LSB, so desktop-side quality
+carries over to the device.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -39,103 +56,332 @@ TensorFlow Lite Micro
 \end{IEEEkeywords}
 
 \section{Introduction}
-% TODO:
-% - Motivation: MLX90640-class sensors are cheap but 32x24; SR raises utility
-%   (presence detection, HMI) without better optics/sensor cost.
-% - Constraint: MCU deployment needs full-integer INT8; partial (hybrid)
-%   quantization is REJECTED by ESP32 TFLM (esp-nn) at runtime.
-% - Contributions list (method + benchmark).
+Far-infrared thermal sensing is increasingly used for occupancy detection,
+touchless interfaces, and condition monitoring, because it is illumination
+invariant and privacy preserving. The price of a thermal pixel, however,
+remains orders of magnitude above that of a visible-light pixel: array
+sensors in the sub-10-euro class, such as the Melexis MLX90640
+\cite{mlx90640ds}, provide only $32{\times}24$ thermopile pixels. Single-image
+super-resolution (SISR) offers a way to trade abundant, cheap compute for
+scarce, expensive optics. In the intended deployments, the only compute
+available is the microcontroller (MCU) already reading the sensor.
+
+Running SISR on an MCU imposes a constraint that is stricter than the usual
+TinyML size budget: the Espressif esp-nn kernels used by TensorFlow Lite
+Micro (TFLM) \cite{david2021tflm} on the ESP32 \emph{reject hybrid models at
+runtime}: graphs whose weights are int8 but whose activations remain float32
+(the default outcome of dynamic-range post-training quantization). A
+deployable model must be \emph{fully} integer: int8 weights, int8
+activations, and int8 input/output tensors. In our experience this failure
+mode is silent until the first on-device \texttt{AllocateTensors()} call,
+which motivates designing for full-integer quantization from the start
+rather than converting trained models after the fact.
+
+This paper makes two contributions. \emph{First}, we show that five
+representative compact SR architectures (ESPCN \cite{shi2016espcn} at three
+widths, FSRCNN \cite{dong2016fsrcnn}, and a reduced EDSR \cite{lim2017edsr})
+can all be expressed in a three-operator vocabulary (\texttt{CONV\_2D},
+\texttt{ADD}, \texttt{DEPTH\_TO\_SPACE}) with int8-friendly substitutions
+that cost little accuracy, so that full-integer INT8 conversion succeeds
+\emph{by construction}. \emph{Second}, we present a complete cross-board
+benchmark of the resulting models on two popular low-cost MCUs, measuring
+latency, memory, flash, reconstruction quality, quantization penalty, and
+device-vs-host numerical fidelity, and reporting estimated energy per frame.
+All results, code, and firmware are reproducible from a single pipeline.
 
 \section{Related Work}
-% TODO:
-% - Compact SISR: SRCNN, ESPCN \cite{shi2016espcn}, FSRCNN \cite{dong2016fsrcnn},
-%   EDSR \cite{lim2017edsr}.
-% - TinyML inference: TFLite Micro \cite{david2021tflm}.
-% - Thermal SR at very low resolution; MLX90640 dataset \cite{zhu2021thermal}.
-% - FLIR-IISR dataset (TODO: citation).
+Compact SISR networks emerged with SRCNN \cite{dong2014srcnn}, which maps a
+bicubically upsampled image through three convolutions. FSRCNN
+\cite{dong2016fsrcnn} operates in low-resolution (LR) space and upsamples
+with a learned $9{\times}9$ stride-2 deconvolution; ESPCN \cite{shi2016espcn}
+introduced the sub-pixel convolution (\emph{pixel shuffle}), keeping all
+computation in LR space. EDSR \cite{lim2017edsr} scaled residual networks to
+state-of-the-art quality; we use a strongly reduced variant. Integer-only
+inference was formalized by Jacob \emph{et al.} \cite{jacob2018quantization};
+TFLM \cite{david2021tflm} brought the int8 runtime to
+kilobyte-class devices. Prior thermal SR work targets larger inputs and
+GPU-class hardware; to our knowledge this is the first systematic study of
+\emph{fully integer} SR at MLX90640-scale resolution ($32{\times}24
+\rightarrow 64{\times}48$) with measurements on commodity MCUs.
 
-\section{Method: Full-INT8 SR Networks}
+\section{Full-INT8 SR Networks}
 \subsection{INT8-friendly architecture modifications}
-% TODO: Table of op substitutions and why:
-% - Tanh -> ReLU (ESPCN): single activation type, cheap int8 kernel.
-% - PReLU -> ReLU (FSRCNN): PReLU has no efficient TFLM int8 path.
-% - ConvTranspose 9x9 s2 -> Conv 3x3 + depth_to_space (FSRCNN-ds).
-% - EDSR residual scaling (0.1) folded into conv weights post-training ->
-%   deployed graph is pure Conv2D/Add.
-% - Resulting op vocabulary: CONV_2D, (ADD,) DEPTH_TO_SPACE. int8 I/O.
+All five networks are built from three TFLM operators with mature int8
+kernels: \texttt{CONV\_2D} (with fused ReLU), \texttt{ADD}, and
+\texttt{DEPTH\_TO\_SPACE}. Table~\ref{tab:mods} summarizes the deviations
+from the original architectures.
+
+\begin{table}[t]
+\caption{INT8-friendly modifications per architecture.}
+\label{tab:mods}
+\centering
+\footnotesize
+\begin{tabular}{ll}
+\toprule
+Model & Modification vs.\ original \\
+\midrule
+ESPCN \cite{shi2016espcn} & Tanh $\rightarrow$ ReLU \\
+ESPCN-Light / -Micro & --- (width-reduced ESPCN, ReLU) \\
+FSRCNN-ds \cite{dong2016fsrcnn} & PReLU $\rightarrow$ ReLU; $9{\times}9$ s2 deconv \\
+ & \quad$\rightarrow$ $3{\times}3$ conv + \texttt{depth\_to\_space} \\
+EDSR-Tiny \cite{lim2017edsr} & residual scaling $0.1$ folded into \\
+ & \quad conv weights at export \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three substitutions deserve justification. \emph{Tanh~$\rightarrow$~ReLU}
+(ESPCN): ReLU fuses into the convolution's int8 requantization step, whereas
+Tanh needs a separate lookup-table kernel; using one activation type across
+all models also keeps the firmware operator resolver minimal.
+\emph{PReLU~$\rightarrow$~ReLU and deconvolution~$\rightarrow$~sub-pixel
+head} (FSRCNN-ds): neither PReLU nor \texttt{TRANSPOSE\_CONV} has a
+fully supported int8 TFLM path on both target runtimes; replacing the
+$9{\times}9$ stride-2 deconvolution with a $3{\times}3$ convolution
+producing $s^2$ channels followed by \texttt{depth\_to\_space} preserves the
+learned-upsampling role at lower cost. \emph{Residual-scale folding}
+(EDSR-Tiny): the $0.1$ scaling applied to each residual branch is a
+multiplication by a constant, so after training we multiply the second
+convolution's kernel and bias of every block by $0.1$ and remove the scaling
+op; the deployed graph is pure \texttt{CONV\_2D}/\texttt{ADD}. For
+single-channel output, PyTorch's PixelShuffle and TensorFlow's
+\texttt{depth\_to\_space} coincide, so no channel reordering is needed.
+
 \subsection{Training and quantization pipeline}
-% TODO: Keras end-to-end (train-what-you-flash), PTQ with representative
-% dataset, int8 I/O; contrast with the PyTorch->ONNX->TF hybrid pipeline
-% failure mode (dynamic-range quantization rejected on-device).
+Models are defined, trained, and exported in one framework
+(\emph{train-what-you-flash}): the exact graph that is flashed is the graph
+that was trained, which makes hybrid operators impossible by construction
+and removes any need for cross-framework weight porting and parity checks.
+Training uses Adam ($10^{-3}$, reduce-on-plateau), MAE loss, batch~32,
+300~epochs, with the best checkpoint selected by validation PSNR.
+Post-training quantization follows the standard full-integer recipe
+\cite{jacob2018quantization}: per-channel int8 weights, per-tensor int8
+activations calibrated on 200 training LR frames, and int8 input/output
+(\texttt{inference\_input\_type} = \texttt{inference\_output\_type} =
+int8). Every exported model is verified by walking its flatbuffer: the
+operator set must be exactly \{\texttt{CONV\_2D}, \texttt{ADD},
+\texttt{DEPTH\_TO\_SPACE}\} and all I/O tensors int8; the export fails
+otherwise.
 
 \section{Experimental Setup}
 \subsection{Dataset and protocol}
-% TODO: FLIR-derived pairs: 1238/219 train/val, grayscale, whole-frame resize
-% to 64x48 (HR), x2 downsample to 32x24 (LR); justify whole-frame FOV
-% statistics vs MLX90640. MLX90640 frames: qualitative only (native 32x24,
-% no ground truth exists at 64x48).
+Quantitative evaluation uses grayscale pairs derived from high-resolution
+FLIR thermal captures\footnote{FLIR-IISR frames, $1024{\times}768$; see the
+released pipeline for provenance.}: each frame is whole-frame resized
+(area interpolation) to $64{\times}48$ ground truth and $\times 2$
+downsampled to a $32{\times}24$ input, giving 1238 training and 219
+validation pairs. Whole-frame resizing, rather than texture crops, keeps the
+full-scene field-of-view statistics comparable to a native low-resolution
+thermal camera. Native MLX90640 recordings \cite{zhu2021thermal} are used
+\emph{qualitatively only} (demo figures and the firmware's embedded test
+frame): no ground truth exists at $64{\times}48$ for them, so no PSNR is
+reported against pseudo-labels.
+
 \subsection{Hardware platforms}
-% TODO: ESP32-DevKitC V4 (no PSRAM), 240 MHz dual-core Xtensa LX6, ~520 KB
-% SRAM (fragmented heap constraint); Raspberry Pi Pico, RP2040 @ 133 MHz
-% Cortex-M0+, 264 KB SRAM. TFLM runtimes: esp-nn / pico-tflmicro.
-% Energy: ESTIMATED chip-level datasheet currents x measured latency
-% (TODO: exact datasheet values + citations).
+\emph{ESP32-DevKitC~V4} (dual-core Xtensa LX6 at 240\,MHz, ${\sim}520$\,KB
+SRAM, \textbf{no PSRAM}) \cite{esp32ds} runs Espressif's TFLM fork with
+esp-nn kernels. The tensor arena is allocated from the internal heap at
+runtime; because the heap is fragmented by the runtime itself, the largest
+allocatable contiguous block is ${\sim}110$\,KB, and the firmware ladders
+the requested arena size downward until allocation succeeds.
+\emph{Raspberry Pi Pico} (RP2040, Cortex-M0+ at 133\,MHz, 264\,KB SRAM)
+\cite{rp2040ds} runs pico-tflmicro with a static arena. A single sketch per
+model targets both boards via conditional compilation and prints
+machine-parseable \texttt{CAS:key=value} lines: arena and heap sizes, first
+plus ten sampled \texttt{Invoke()} times, and a full int8 output dump that
+is compared against the PC TFLite interpreter output embedded at build
+time. Energy per frame is \emph{estimated} as datasheet chip-level active
+current (50\,mA ESP32, 25\,mA RP2040, at 3.3\,V) times measured latency; no
+power meter was used, and the figures exclude board regulators and USB.
 
 \section{Results}
-\subsection{Quality and quantization drop}
-% TODO: pull from results/main_table.csv
+\subsection{Quality and quantization penalty}
+Table~\ref{tab:quality} reports validation quality. Every INT8 model beats
+the bicubic baseline (30.56\,dB), by margins from $+0.19$\,dB (ESPCN-Micro,
+1.6\,k parameters) to $+2.02$\,dB (EDSR-Tiny). The quantization penalty is
+0.17--0.64\,dB and is \emph{non-monotonic in model size}: ESPCN-Light loses
+0.64\,dB while both the smaller ESPCN-Micro (0.17\,dB) and the larger ESPCN
+(0.28\,dB) lose less. The penalty is a per-architecture sensitivity rather
+than a calibration artifact: increasing the calibration set from 200 to all
+1238 training frames left it unchanged.
+
+Fig.~\ref{fig:flirgt} compares the deployed INT8 models against the ground
+truth on two validation frames chosen by fixed rules (no cherry-picking):
+the frame at the 25th percentile of bicubic PSNR (a harder scene) and the
+frame with the most spatial detail (highest Laplacian variance). The models
+recover the silhouette edges and facade structure that bicubic blurs, and
+the per-frame PSNR ordering reproduces the validation-mean ranking of
+Table~\ref{tab:quality}.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{flir_gt_comparison.pdf}
+\caption{FLIR validation frames super-resolved by the deployed INT8 models
+(LiteRT inference of the flashed flatbuffers), with per-frame PSNR against
+the $64{\times}48$ ground truth. Top: 25th-percentile-difficulty scene;
+bottom: highest-detail scene.}
+\label{fig:flirgt}
+\end{figure*}
+
 \begin{table}[t]
-\caption{Models, footprint and reconstruction quality (val split).}
+\caption{Footprint and reconstruction quality (219-pair validation split).}
 \label{tab:quality}
 \centering
-\begin{tabular}{lrrrrr}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrrrrr}
 \toprule
-Model & Params & kMAC & Flash & PSNR$_{f32}$ & $\Delta$PSNR$_{int8}$ \\
-      &        &      & (KB)  & (dB)         & (dB) \\
+Model & Params & MMAC & \makecell[r]{Flash\\(KB)} & \makecell[r]{PSNR$_{\mathrm{f32}}$\\(dB)} & SSIM$_{\mathrm{f32}}$ & \makecell[r]{$\Delta$PSNR$_{\mathrm{int8}}$\\(dB)} & SSIM$_{\mathrm{int8}}$ \\
 \midrule
-% TODO rows from main_table.csv
+Bicubic     & ---    & ---   & ---   & 30.56 & ---   & ---     & --- \\
+ESPCN-Micro & 1.6\,k  & 1.2   & 5.2   & 30.92 & 0.905 & $-0.17$ & 0.899 \\
+ESPCN-Light & 6.0\,k  & 4.6   & 10.1  & 31.45 & 0.911 & $-0.64$ & 0.892 \\
+FSRCNN-ds   & 10.1\,k & 7.6   & 20.8  & 31.61 & 0.913 & $-0.49$ & 0.895 \\
+ESPCN       & 21.3\,k & 16.3  & 26.2  & 31.73 & 0.914 & $-0.28$ & 0.903 \\
+EDSR-Tiny   & 158.7\,k & 121.4 & 185.2 & 32.83 & 0.927 & $-0.25$ & 0.920 \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{mlx_device_qualitative.pdf}
+\caption{Native MLX90640 frames ($32{\times}24$) super-resolved to
+$64{\times}48$ (all INT8). \emph{Top row:} the firmware's embedded test
+frame; the SR images shown are the exact int8 bytes captured from the
+boards' serial dumps (EDSR-Tiny from the Pico, all others from the ESP32).
+\emph{Bottom row:} a further frame run on host with the same flashed
+flatbuffers (device-identical within the bounds of
+Sec.~\ref{sec:fidelity}). Qualitative only; no ground truth exists at the
+target resolution.}
+\label{fig:qualitative}
+\end{figure*}
+
 \subsection{On-device performance}
+Table~\ref{tab:board} and Fig.~\ref{fig:tradeoff} summarize the board
+measurements (mean of 10 \texttt{Invoke()} calls; the standard deviation is
+below 0.03\,ms in all runs, so single measurements are representative).
+
 \begin{table}[t]
-\caption{On-device latency, memory and estimated energy.}
+\caption{On-device latency, arena memory and estimated energy per frame.}
 \label{tab:board}
 \centering
-\begin{tabular}{lrrrrr}
+\footnotesize
+\setlength{\tabcolsep}{3.6pt}
+\begin{tabular}{lrrrrrr}
 \toprule
-Model & \multicolumn{2}{c}{ESP32} & \multicolumn{2}{c}{Pico} & \\
- & ms & KB arena & ms & KB arena & est.\ mJ \\
+ & \multicolumn{3}{c}{ESP32 (240\,MHz)} & \multicolumn{3}{c}{Pico (133\,MHz)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Model & ms & \makecell[r]{arena\\KB} & \makecell[r]{est.\\mJ} & ms & \makecell[r]{arena\\KB} & \makecell[r]{est.\\mJ} \\
 \midrule
-% TODO rows from main_table.csv; EDSR-Tiny expected "n/f" on ESP32
+ESPCN-Micro & 102.1 & 19.1 & 16.9  & 127.9   & 19.7  & 10.6 \\
+ESPCN-Light & 337.9 & 37.2 & 55.8  & 402.6   & 38.5  & 33.2 \\
+FSRCNN-ds   & 628.0 & 54.0 & 103.6 & 717.4   & 54.2  & 59.2 \\
+ESPCN       & 969.1 & 73.6 & 159.9 & 1500.8  & 76.0  & 123.8 \\
+EDSR-Tiny   & \multicolumn{3}{c}{does not fit} & 10038.7 & 129.3 & 828.2 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{figure}[t]
 \centering
-% \includegraphics[width=\columnwidth]{psnr_vs_latency.pdf}
-\caption{Quality--latency trade-off per board (INT8, log-scale latency).}
+\includegraphics[width=\columnwidth]{psnr_vs_latency.pdf}
+\caption{Quality--latency trade-off of the INT8 models on both boards
+(log-scale latency).}
 \label{fig:tradeoff}
 \end{figure}
 
-\begin{figure}[t]
-\centering
-% \includegraphics[width=\columnwidth]{qualitative_paper.png}
-\caption{Native MLX90640 frames (32$\times$24) super-resolved on-device to
-64$\times$48: LR input, bicubic, and the five INT8 models (qualitative --
-no ground truth exists at the target resolution).}
-\label{fig:qualitative}
-\end{figure}
+The board measurements yield four observations. \emph{(i)~Real-time SR is feasible:}
+ESPCN-Micro runs at 9.8\,FPS on the ESP32 and 7.8\,FPS on the Pico,
+matching the MLX90640's typical 8\,Hz refresh rate \cite{mlx90640ds}, at
+under 20\,KB of arena. \emph{(ii)~The fit boundary is memory, not flash:}
+EDSR-Tiny (185\,KB flash, 129\,KB arena) runs on the Pico's 264\,KB
+contiguous SRAM but cannot obtain a large-enough contiguous block on the
+ESP32's fragmented internal heap. This is a concrete, measured illustration
+that \emph{usable} SRAM on the ESP32 is bounded by its largest free block
+(${\sim}110$\,KB), not by the 520\,KB total. \emph{(iii)~The slower, simpler
+core is competitive:} despite a $1.8\times$ clock deficit and no vector
+extensions, the RP2040 is only 14--26\% slower than the ESP32 on the three
+smallest models (widening to 55\% on ESPCN), and its estimated energy per
+frame is ${\sim}1.4$--$1.8\times$ lower throughout.
+\emph{(iv)~Latency is predictable from the MAC count alone:} across a
+$100\times$ span in workload, the effective per-operation cost stays within
+a narrow band: 60--84\,ns/MAC on the ESP32 and 83--105\,ns/MAC on the
+RP2040. A designer can therefore estimate on-device latency of a candidate
+architecture to within ${\sim}40\%$ \emph{before training it}, from the
+analytic MAC count of the graph. The most efficient point on the ESP32 is
+the full ESPCN (59.6\,ns/MAC): its wide 64-channel convolutions amortize
+per-layer overhead best in the esp-nn kernels.
 
-% TODO: bit-exactness note: on-board int8 outputs match the PC TFLite
-% interpreter exactly (ref_mismatches = 0), so PC-side PSNR transfers
-% verbatim to the deployed system.
+\subsection{Device--host numerical fidelity}
+\label{sec:fidelity}
+The firmware compares every output pixel against the PC TFLite interpreter
+reference. Outputs are not universally bit-exact, but the deviation is
+bounded and \emph{identical on both boards}: the ESPCN family differs on at
+most 3.9\% of pixels by $\pm 1$ LSB; FSRCNN-ds on 31\% by up to $\pm 4$ LSB;
+EDSR-Tiny (Pico) on 49\% by up to $\pm 3$ LSB. Equal mismatch counts on two
+unrelated cores indicate deterministic rounding differences in the optimized
+int8 kernels rather than platform defects, so PC-side quality metrics
+transfer to the device within these sub-quantization-step bounds.
+
+\section{Discussion and Limitations}
+\emph{Choosing a model.} The measurements suggest a simple selection rule.
+If the application must keep up with the sensor (8\,Hz), ESPCN-Micro is
+currently the only option, and it still clears bicubic by $+0.19$\,dB in
+20\,KB of RAM. If frames are processed on demand (e.g., a presence event
+triggers one high-quality readout), ESPCN at ${\sim}1$\,s or EDSR-Tiny at
+${\sim}10$\,s (Pico) buy $+0.9$\,dB and $+2.0$\,dB respectively. FSRCNN-ds
+and ESPCN-Light are dominated in this benchmark: ESPCN reaches higher
+quality at comparable or better per-MAC efficiency, and their larger
+quantization penalties (0.49--0.64\,dB) erode their float32 advantage.
+
+\emph{Quantization penalty and QAT.} The penalty is post-training
+quantization only; quantization-aware training \cite{jacob2018quantization}
+would likely recover much of ESPCN-Light's 0.64\,dB, but was not applied
+here to keep every model on the identical, reproducible PTQ recipe. The
+penalty proved insensitive to calibration-set size (200 vs.\ all 1238
+frames). This points to a genuine architecture sensitivity, plausibly the
+narrow 16-channel bottleneck concentrating activation ranges, rather than
+insufficient calibration statistics.
+
+\emph{Protocol.} The $64{\times}48$ ground truth is itself produced by
+downscaling high-resolution FLIR captures, so absolute PSNR values are
+specific to this protocol; the supported claims are the \emph{relative}
+ranking of models and the quantization deltas. The on-device fidelity check
+uses one embedded test frame per model (flash budget), so its mismatch
+statistics are not a dataset-wide guarantee.
+
+\emph{Energy.} The energy column is a first-order estimate (datasheet
+chip-level active current $\times$ measured latency) that excludes board
+regulators, USB, and duty-cycling; it supports \emph{relative} comparison
+between models and boards, not absolute power claims.
+
+\emph{Headroom.} Both targets are dual-core, yet TFLM executes
+single-threaded, leaving a near-$2\times$ latency reserve that could bring the
+mid-size models to sensor rate without touching the models themselves.
 
 \section{Conclusion}
-% TODO
+Restricting compact SR networks to a three-operator, int8-native vocabulary
+makes full-integer quantization succeed by construction and costs at most
+0.64\,dB. The resulting models turn a 32$\times$24 thermopile array into a
+64$\times$48 imager entirely on a low-cost MCU: at the small end,
+sensor-rate (8\,Hz) super-resolution in 20\,KB of RAM; at the large end, a
++2\,dB model that fits the Pico but is excluded from the ESP32 by heap
+fragmentation alone. Beyond the specific numbers, two engineering lessons
+generalize: full-integer deployability is an \emph{architectural} property
+that should be designed in before training, and on-device latency of this
+model class is predictable from the analytic MAC count within tens of
+percent. We release the full pipeline (training, quantization with
+flatbuffer verification, dual-target firmware, log parsing) so every
+number is reproducible. Future work includes quantization-aware training
+to recover the ESPCN-Light penalty, dual-core execution, and true power
+measurements.
 
+% \section*{Acknowledgment}
+% TODO: thank advisor / funding before submission.
+
+\balance
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
 

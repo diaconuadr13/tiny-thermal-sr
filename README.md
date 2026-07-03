@@ -60,6 +60,11 @@ python measure/make_firmware.py
 # 5. Flash each firmware/<model>/ sketch (machine with boards + arduino-cli):
 ./measure/flash_and_capture.sh espcn_micro esp32
 ./measure/flash_and_capture.sh espcn_micro pico
+# Pico note: RP2040 USB-CDC drops output unless the host holds DTR asserted,
+# and there is no reset line - start capture_pico.py BEFORE `arduino-cli
+# upload` (it retry-opens through re-enumeration):
+#   python measure/capture_pico.py /dev/cu.usbmodemXXXX <model> pico 300 &
+#   arduino-cli upload -p /dev/cu.usbmodemXXXX --fqbn rp2040:rp2040:rpipico firmware/<model>
 python measure/parse_serial_log.py            # -> results/board_metrics.csv
 
 # 6. Aggregate + figures
@@ -99,7 +104,10 @@ Bicubic baseline: 30.44 dB. Full table: `results/main_table.csv`.
   measured latency), labeled as such — no power meter was used.
 - MLX90640 SR results are qualitative; quantitative claims use the
   FLIR-derived val split only.
-- `ref_mismatches=0` in board logs proves the deployed model computes exactly
-  what was evaluated on PC, so quality numbers transfer to the device.
+- On-device outputs are NOT universally bit-exact vs the PC interpreter, but
+  the deviation is bounded and identical on both boards (ESPCN family: <=3.9%
+  of pixels by +-1 LSB; FSRCNN-ds: 31% by up to +-4; EDSR-Tiny: 49% by up to
+  +-3) - deterministic kernel rounding, so PC quality transfers within
+  sub-quantization-step bounds. Per-model numbers: results/board_metrics.csv.
 - espcn_light's 0.64 dB PTQ drop is intrinsic (calibration-size independent);
   QAT is currently blocked by tfmot × Keras 3 incompatibility.
