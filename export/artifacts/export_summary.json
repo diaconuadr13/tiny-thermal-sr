@@ -1,0 +1,93 @@
+[
+  {
+    "model": "espcn",
+    "params": 21284,
+    "tflite_int8_kb": 26.2,
+    "ops": [
+      "CONV_2D",
+      "DEPTH_TO_SPACE"
+    ],
+    "float32": {
+      "psnr": 31.726811483026093,
+      "ssim": 0.913932137837693
+    },
+    "int8": {
+      "psnr": 31.448955100420946,
+      "ssim": 0.9028000322651101
+    },
+    "psnr_drop": 0.27785638260514745
+  },
+  {
+    "model": "espcn_light",
+    "params": 6036,
+    "tflite_int8_kb": 10.1,
+    "ops": [
+      "CONV_2D",
+      "DEPTH_TO_SPACE"
+    ],
+    "float32": {
+      "psnr": 31.447985148321003,
+      "ssim": 0.9114800367725494
+    },
+    "int8": {
+      "psnr": 30.806691487630207,
+      "ssim": 0.892380008686623
+    },
+    "psnr_drop": 0.6412936606907955
+  },
+  {
+    "model": "espcn_micro",
+    "params": 1612,
+    "tflite_int8_kb": 5.2,
+    "ops": [
+      "CONV_2D",
+      "DEPTH_TO_SPACE"
+    ],
+    "float32": {
+      "psnr": 30.915598499176166,
+      "ssim": 0.9052937169597574
+    },
+    "int8": {
+      "psnr": 30.749631054325192,
+      "ssim": 0.8985704518344304
+    },
+    "psnr_drop": 0.16596744485097403
+  },
+  {
+    "model": "fsrcnn_ds",
+    "params": 10120,
+    "tflite_int8_kb": 20.8,
+    "ops": [
+      "CONV_2D",
+      "DEPTH_TO_SPACE"
+    ],
+    "float32": {
+      "psnr": 31.614201079764868,
+      "ssim": 0.9131630389657739
+    },
+    "int8": {
+      "psnr": 31.125233010069966,
+      "ssim": 0.895144389372438
+    },
+    "psnr_drop": 0.48896806969490214
+  },
+  {
+    "model": "edsr_tiny",
+    "params": 158692,
+    "tflite_int8_kb": 185.2,
+    "ops": [
+      "ADD",
+      "CONV_2D",
+      "DEPTH_TO_SPACE"
+    ],
+    "float32": {
+      "psnr": 32.83196135743024,
+      "ssim": 0.9266901351001164
+    },
+    "int8": {
+      "psnr": 32.57959250010312,
+      "ssim": 0.9203841122862411
+    },
+    "psnr_drop": 0.2523688573271201
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "model": "espcn_light",
+  "params": 6036,
+  "config": {
+    "model": "espcn_light",
+    "scale": 2,
+    "lr_size": [
+      24,
+      32
+    ],
+    "epochs": 300,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "seed": 42
+  },
+  "best_epoch": 299,
+  "best_val_psnr": 31.410526275634766,
+  "best_val_ssim": 0.9109956622123718,
+  "bicubic_baseline": {
+    "psnr": 30.440326690673828,
+    "ssim": 0.8919581770896912
+  }
+}

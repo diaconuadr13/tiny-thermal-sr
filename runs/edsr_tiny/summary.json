@@ -1,0 +1,23 @@
+{
+  "model": "edsr_tiny",
+  "params": 158692,
+  "config": {
+    "model": "edsr_tiny",
+    "scale": 2,
+    "lr_size": [
+      24,
+      32
+    ],
+    "epochs": 300,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "seed": 42
+  },
+  "best_epoch": 299,
+  "best_val_psnr": 32.77985763549805,
+  "best_val_ssim": 0.9260458946228027,
+  "bicubic_baseline": {
+    "psnr": 30.440326690673828,
+    "ssim": 0.8919581770896912
+  }
+}

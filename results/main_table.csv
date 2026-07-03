@@ -1,0 +1,6 @@
+model,params,kmacs,flash_kb,psnr_f32,ssim_f32,psnr_int8,psnr_drop,esp32_ms,esp32_arena_kb,esp32_mj_est,esp32_exact,pico_ms,pico_arena_kb,pico_mj_est,pico_exact
+espcn_micro,1612,1217,5.2,30.92,0.9053,30.75,0.166,pending,-,-,-,pending,-,-,-
+espcn_light,6036,4596,10.1,31.45,0.9115,30.81,0.641,pending,-,-,-,pending,-,-,-
+fsrcnn_ds,10120,7637,20.8,31.61,0.9132,31.13,0.489,pending,-,-,-,pending,-,-,-
+espcn,21284,16269,26.2,31.73,0.9139,31.45,0.278,pending,-,-,-,pending,-,-,-
+edsr_tiny,158692,121430,185.2,32.83,0.9267,32.58,0.252,pending,-,-,-,pending,-,-,-

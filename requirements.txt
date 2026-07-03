@@ -1,0 +1,6 @@
+tensorflow>=2.16
+opencv-python-headless
+numpy
+PyYAML
+matplotlib
+pyserial

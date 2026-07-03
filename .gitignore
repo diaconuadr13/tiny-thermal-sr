@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# regenerable from the thesis repo via data_prep/prepare_data.py
+data/
+
+# training outputs: weights are kept (small, make export reproducible),
+# per-epoch logs are not
+runs/*/training_log.csv
+measure/logs/*.log

@@ -1,0 +1,7 @@
+model: edsr_tiny
+scale: 2
+lr_size: [24, 32]
+epochs: 300
+batch_size: 32
+learning_rate: 0.001
+seed: 42

@@ -1,0 +1,23 @@
+{
+  "model": "fsrcnn_ds",
+  "params": 10120,
+  "config": {
+    "model": "fsrcnn_ds",
+    "scale": 2,
+    "lr_size": [
+      24,
+      32
+    ],
+    "epochs": 300,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "seed": 42
+  },
+  "best_epoch": 299,
+  "best_val_psnr": 31.5747013092041,
+  "best_val_ssim": 0.9126800894737244,
+  "bicubic_baseline": {
+    "psnr": 30.440326690673828,
+    "ssim": 0.8919581770896912
+  }
+}

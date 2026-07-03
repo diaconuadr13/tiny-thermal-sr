@@ -1,0 +1,23 @@
+{
+  "model": "espcn_micro",
+  "params": 1612,
+  "config": {
+    "model": "espcn_micro",
+    "scale": 2,
+    "lr_size": [
+      24,
+      32
+    ],
+    "epochs": 300,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "seed": 42
+  },
+  "best_epoch": 294,
+  "best_val_psnr": 30.87984275817871,
+  "best_val_ssim": 0.9048090577125549,
+  "bicubic_baseline": {
+    "psnr": 30.440326690673828,
+    "ssim": 0.8919581770896912
+  }
+}
